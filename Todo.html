@@ -1,0 +1,84 @@
+﻿<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>Todo App</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <h1>Todo</h1>
+
+  <button id="open-category-modal">カテゴリ管理</button>
+
+  <form id="todo-form">
+    <input id="todo-input" placeholder="新しいTodoを入力" />
+    <select id="category-select"></select>
+    <input type="date" id="due-date-input" />
+    <button type="submit">追加</button>
+  </form>
+
+  <div class="controls">
+    <select id="status-filter">
+      <option value="all">すべて</option>
+      <option value="active">未完了</option>
+      <option value="completed">完了済み</option>
+    </select>
+
+    <select id="category-filter"></select>
+
+    <select id="due-filter">
+      <option value="all">期限すべて</option>
+      <option value="today">今日</option>
+      <option value="week">今週</option>
+    </select>
+
+    <select id="sort-select">
+      <option value="created-desc">作成日（新しい順）</option>
+      <option value="created-asc">作成日（古い順）</option>
+      <option value="updated-desc">更新日（新しい順）</option>
+      <option value="updated-asc">更新日（古い順）</option>
+      <option value="due-asc">期限（近い順）</option>
+      <option value="due-desc">期限（遠い順）</option>
+    </select>
+  </div>
+
+  <ul id="todo-list"></ul>
+
+  <!-- カテゴリ管理モーダル -->
+  <div id="category-modal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>カテゴリ管理</h2>
+        <button id="close-category-modal">×</button>
+      </div>
+
+      <div class="modal-body">
+        <ul id="category-list"></ul>
+      </div>
+
+      <div class="modal-footer">
+        <input id="new-category-input" placeholder="新しいカテゴリ名" />
+
+        <!-- ドット式カラーピッカー -->
+        <div id="color-picker" class="color-picker">
+          <span class="color-dot" data-color="#4f8cff"></span>
+          <span class="color-dot" data-color="#20bf6b"></span>
+          <span class="color-dot" data-color="#f7b731"></span>
+          <span class="color-dot" data-color="#ff6b6b"></span>
+          <span class="color-dot" data-color="#a55eea"></span>
+          <span class="color-dot" data-color="#00bcd4"></span>
+          <span class="color-dot" data-color="#fa8231"></span>
+          <span class="color-dot" data-color="#26de81"></span>
+          <span class="color-dot" data-color="#778ca3"></span>
+          <span class="color-dot" data-color="#2d98da"></span>
+        </div>
+
+
+        <button id="add-category-button">追加</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
