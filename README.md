@@ -12,17 +12,15 @@
 
 ---
 
-# English Version
-
-## Overview
+# Overview
 This repository contains applications developed for personal use.  
 Each directory includes the application code and related libraries.
 
-## License
+# License
 The contents of this repository are provided under the **MIT License**.  
 For details, please refer to the `LICENSE` file.
 
-## Disclaimer
+# Disclaimer
 Use of the code and applications in this repository is **at your own risk**.  
 The author assumes no responsibility for any damages resulting from their use.
 
