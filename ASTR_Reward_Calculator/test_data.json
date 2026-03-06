@@ -1,0 +1,22 @@
+[
+  {
+    "id": "test_1",
+    "date": "2024-03-01",
+    "astrAmount": 50.12345678,
+    "exchangeRate": 150.5,
+    "astrPrice": 0.1234,
+    "fee": 0.5,
+    "createdAt": "2024-03-01T10:00:00Z",
+    "updatedAt": "2024-03-01T10:00:00Z"
+  },
+  {
+    "id": "test_2",
+    "date": "2024-03-02",
+    "astrAmount": 25.0,
+    "exchangeRate": 149.8,
+    "astrPrice": 0.125,
+    "fee": 0.3,
+    "createdAt": "2024-03-02T10:00:00Z",
+    "updatedAt": "2024-03-02T10:00:00Z"
+  }
+]

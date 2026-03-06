@@ -1,0 +1,35 @@
+{
+  "exportDate": "2026-03-06T12:00:00Z",
+  "appVersion": "1.0.0",
+  "entries": [
+    {
+      "id": "test_abc123",
+      "date": "2026-03-01",
+      "astrAmount": 10.5,
+      "exchangeRate": 155.25,
+      "astrPrice": 0.2,
+      "fee": 0.05,
+      "createdAt": "2026-03-01T08:00:00Z",
+      "updatedAt": "2026-03-01T08:00:00Z"
+    },
+    {
+      "id": "test_def456",
+      "date": "2026-03-02",
+      "astrAmount": 20.75,
+      "exchangeRate": 156.10,
+      "astrPrice": 0.19,
+      "fee": 0.1,
+      "createdAt": "2026-03-02T09:00:00Z",
+      "updatedAt": "2026-03-02T09:00:00Z"
+    }
+  ],
+  "totals": {
+    "totalCount": 2,
+    "totalAstr": 31.25,
+    "totalFee": 0.15,
+    "totalFeeJPY": 0,
+    "totalRewardUSD": 0,
+    "totalRewardJPY": 0,
+    "netProfitJPY": 0
+  }
+}
