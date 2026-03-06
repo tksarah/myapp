@@ -149,6 +149,27 @@ header p {
     font-size: 0.875rem;
 }
 
+/* 高視認のデータ操作ボタン */
+#dataActions .btn {
+    font-weight: 700;
+}
+
+#dataActions .btn-success {
+    background: linear-gradient(135deg, #28a745, #218838);
+}
+
+#dataActions .btn-info {
+    background: linear-gradient(135deg, #0dcaf0, #31d2f2);
+}
+
+#dataActions .btn-primary {
+    background: linear-gradient(135deg, #0d6efd, #0b5ed7);
+}
+
+#dataActions .btn-danger {
+    background: linear-gradient(135deg, #dc3545, #c82333);
+}
+
 /* ========================
    集計サマリー
    ======================== */
