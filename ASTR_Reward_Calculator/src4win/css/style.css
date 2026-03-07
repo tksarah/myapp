@@ -467,22 +467,76 @@ header p {
 /* 高視認のデータ操作ボタン */
 #dataActions .btn {
     font-weight: 700;
+    color: #f3f4f6;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
-#dataActions .btn-success {
-    background: linear-gradient(135deg, #28a745, #218838);
+#dataActions .btn:hover,
+#dataActions .btn:focus-visible {
+    color: #f8f9fa;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(34, 39, 45, 0.22);
 }
 
-#dataActions .btn-info {
-    background: linear-gradient(135deg, #0dcaf0, #31d2f2);
+#dataActions .btn:active {
+    transform: translateY(0);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
-#dataActions .btn-primary {
-    background: linear-gradient(135deg, #0d6efd, #0b5ed7);
+#exportCsvBtn {
+    background: #7B858B;
+    border-color: #7B858B;
 }
 
-#dataActions .btn-danger {
-    background: linear-gradient(135deg, #dc3545, #c82333);
+#exportJsonBtn {
+    background: #6D767C;
+    border-color: #6D767C;
+}
+
+#exportPdfBtn {
+    background: #5F676D;
+    border-color: #5F676D;
+}
+
+#exportReportBtn {
+    background: #50575E;
+    border-color: #50575E;
+}
+
+#importJsonBtn {
+    background: #42484F;
+    border-color: #42484F;
+}
+
+#exportCsvBtn:hover,
+#exportCsvBtn:focus-visible {
+    background: #707980;
+    border-color: #707980;
+}
+
+#exportJsonBtn:hover,
+#exportJsonBtn:focus-visible {
+    background: #636b71;
+    border-color: #636b71;
+}
+
+#exportPdfBtn:hover,
+#exportPdfBtn:focus-visible {
+    background: #565d63;
+    border-color: #565d63;
+}
+
+#exportReportBtn:hover,
+#exportReportBtn:focus-visible {
+    background: #484f56;
+    border-color: #484f56;
+}
+
+#importJsonBtn:hover,
+#importJsonBtn:focus-visible {
+    background: #3b4046;
+    border-color: #3b4046;
 }
 
 /* ========================
@@ -549,6 +603,28 @@ header p {
 /* ========================
    集計サマリー
    ======================== */
+
+#totalCount,
+#totalAstr,
+#totalFee,
+#totalFeeJpy,
+#totalRewardUsd,
+#totalRewardJpy,
+#weightedAvgAstrUsd,
+#weightedAvgAstrJpy {
+    color: #1f1f1f !important;
+}
+
+[data-theme="dark"] #totalCount,
+[data-theme="dark"] #totalAstr,
+[data-theme="dark"] #totalFee,
+[data-theme="dark"] #totalFeeJpy,
+[data-theme="dark"] #totalRewardUsd,
+[data-theme="dark"] #totalRewardJpy,
+[data-theme="dark"] #weightedAvgAstrUsd,
+[data-theme="dark"] #weightedAvgAstrJpy {
+    color: #ffffff !important;
+}
 
 .card-header.bg-success {
     background: linear-gradient(135deg, var(--success-color), #1a8f4f) !important;
