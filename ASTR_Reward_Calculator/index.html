@@ -13,7 +13,17 @@
         <header class="mb-5">
             <div class="d-flex justify-content-between align-items-center">
                 <div>
-                    <h1 class="text-center mb-2">🌟 ASTR Reward Tax Calculator</h1>
+                    <h1 class="app-title mb-2">
+                        <img
+                            src="img/Symbol_Color.png"
+                            alt="Astar logo"
+                            class="app-logo"
+                            id="appLogo"
+                            data-light-src="img/Symbol_Color.png"
+                            data-dark-src="img/Symbol_White.png"
+                        >
+                        <span>ASTR Reward Tax Calculator</span>
+                    </h1>
                     <p class="text-center text-muted">Astar dApp Staking リワード計算ツール</p>
                 </div>
                 <div class="theme-toggle">
@@ -38,6 +48,10 @@
                             <div class="mb-3">
                                 <label for="date" class="form-label">📅 日付</label>
                                 <input type="date" class="form-control" id="date" required>
+                                <button type="button" class="btn btn-outline-primary btn-sm mt-2 w-100" id="fetchReferenceRateBtn">
+                                    📡 その日の参考レートを取得
+                                </button>
+                                <small class="text-muted d-block mt-2">※ 参考値として ASTR/USD と USD/JPY を自動入力します。必要なら手入力で上書きできます。</small>
                             </div>
 
                             <!-- ASTR量 -->
@@ -156,7 +170,7 @@
                 <!-- データテーブル -->
                 <div class="card shadow-sm">
                     <div class="card-header bg-info text-white">
-                        <h5 class="mb-0">📋 取引履歴</h5>
+                        <h5 class="mb-0">📋 Claim 履歴</h5>
                     </div>
                     <div class="card-body">
                         <div class="table-responsive">
@@ -206,7 +220,7 @@
             <p class="small mb-2">
                 <strong>Builder</strong>: tksarah
                 <span class="mx-2">|</span>
-                <strong>Version</strong>: 1.0.0
+                <strong>Version</strong>: 1.1.0
             </p>
             <p class="small">
                 ⚠️ <strong>免責事項：</strong>このツールは参考情報です。確定申告の前に必ず税理士または税務署にご相談ください。

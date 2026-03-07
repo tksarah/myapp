@@ -347,6 +347,20 @@ header h1 {
     font-size: 2.5rem;
 }
 
+.app-title {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.65rem;
+}
+
+.app-logo {
+    width: auto;
+    height: 1em;
+    flex: 0 0 auto;
+    object-fit: contain;
+}
+
 header p {
     font-size: 1.1rem;
 }
@@ -641,6 +655,10 @@ h3 {
 
     header h1 {
         font-size: 1.5rem;
+    }
+
+    .app-title {
+        gap: 0.45rem;
     }
 
     .card-body {

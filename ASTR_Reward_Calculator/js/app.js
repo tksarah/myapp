@@ -55,6 +55,10 @@ class ASTRRewardCalculator {
             this.handleFormSubmit();
         });
 
+        document.getElementById('fetchReferenceRateBtn').addEventListener('click', () => {
+            this.handleFetchReferenceRate();
+        });
+
         // エクスポート
         document.getElementById('exportCsvBtn').addEventListener('click', () => this.exportToCSV());
         document.getElementById('exportJsonBtn').addEventListener('click', () => this.exportToJSON());
@@ -112,6 +116,104 @@ class ASTRRewardCalculator {
             astrPrice,
             fee,
         };
+    }
+
+    async handleFetchReferenceRate() {
+        const date = document.getElementById('date').value;
+
+        if (!date) {
+            this.showAlert('先に日付を入力してください。', 'warning');
+            return;
+        }
+
+        this.setReferenceRateButtonLoading(true);
+
+        try {
+            const [astrResult, fxResult] = await Promise.allSettled([
+                this.fetchAstarUsdReferenceRate(date),
+                this.fetchUsdJpyReferenceRate(date),
+            ]);
+
+            let updatedFields = 0;
+            const messages = [];
+
+            if (astrResult.status === 'fulfilled') {
+                document.getElementById('astrPrice').value = astrResult.value.toFixed(4);
+                updatedFields += 1;
+                messages.push(`ASTR/USD: ${astrResult.value.toFixed(4)}`);
+            }
+
+            if (fxResult.status === 'fulfilled') {
+                document.getElementById('exchangeRate').value = fxResult.value.toFixed(2);
+                updatedFields += 1;
+                messages.push(`USD/JPY: ${fxResult.value.toFixed(2)}`);
+            }
+
+            if (updatedFields === 2) {
+                this.showAlert(`✅ 参考レートを取得しました。${messages.join(' / ')}`, 'success');
+                return;
+            }
+
+            if (updatedFields === 1) {
+                this.showAlert(`⚠️ 一部の参考レートのみ取得しました。${messages.join(' / ')}`, 'warning');
+                return;
+            }
+
+            throw new Error('参考レートを取得できませんでした。');
+        } catch (error) {
+            console.error('参考レート取得エラー:', error);
+            this.showAlert('❌ 参考レートの取得に失敗しました。手入力は引き続き利用できます。', 'danger');
+        } finally {
+            this.setReferenceRateButtonLoading(false);
+        }
+    }
+
+    async fetchAstarUsdReferenceRate(date) {
+        const formattedDate = this.formatDateForCoinGecko(date);
+        const response = await fetch(`https://api.coingecko.com/api/v3/coins/astar/history?date=${formattedDate}&localization=false`);
+
+        if (!response.ok) {
+            throw new Error(`ASTRレートの取得に失敗しました: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const price = data?.market_data?.current_price?.usd;
+
+        if (typeof price !== 'number') {
+            throw new Error('ASTR/USD レートがレスポンスに含まれていません。');
+        }
+
+        return price;
+    }
+
+    async fetchUsdJpyReferenceRate(date) {
+        const response = await fetch(`https://api.frankfurter.dev/v1/${date}?base=USD&symbols=JPY`);
+
+        if (!response.ok) {
+            throw new Error(`USD/JPY レートの取得に失敗しました: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const rate = data?.rates?.JPY;
+
+        if (typeof rate !== 'number') {
+            throw new Error('USD/JPY レートがレスポンスに含まれていません。');
+        }
+
+        return rate;
+    }
+
+    formatDateForCoinGecko(date) {
+        const [year, month, day] = date.split('-');
+        return `${day}-${month}-${year}`;
+    }
+
+    setReferenceRateButtonLoading(isLoading) {
+        const button = document.getElementById('fetchReferenceRateBtn');
+        if (!button) return;
+
+        button.disabled = isLoading;
+        button.textContent = isLoading ? '⏳ 参考レート取得中...' : '📡 その日の参考レートを取得';
     }
 
     handleFormSubmit() {
@@ -748,12 +850,19 @@ class ASTRRewardCalculator {
     setTheme(theme) {
         document.documentElement.setAttribute('data-theme', theme);
         const button = document.getElementById('themeToggle');
+        const logo = document.getElementById('appLogo');
         if (theme === 'dark') {
             button.innerHTML = '☀️ ライト';
             button.className = 'btn btn-light btn-sm';
+            if (logo) {
+                logo.src = logo.dataset.darkSrc;
+            }
         } else {
             button.innerHTML = '🌙 ダーク';
             button.className = 'btn btn-outline-secondary btn-sm';
+            if (logo) {
+                logo.src = logo.dataset.lightSrc;
+            }
         }
         // テーマ変更時にグラフを完全に再作成
         this.forceUpdateChart();
