@@ -4,8 +4,9 @@
 
 - プロジェクト名: ASTR Reward Tax Calculator
 - 目的: Astar Network の dApp Staking リワードを記録し、税務整理向けに集計・可視化する
-- 実行環境: ブラウザのみ
-- バージョン: 1.6.0
+- 実行環境: ブラウザ
+- 派生ソース: Windows ネイティブアプリ向け画面資産を src4win 配下に保持
+- バージョン: 1.7.0
 - ビルダー: tksarah
 
 ## 2. 実装アーキテクチャ
@@ -25,6 +26,7 @@
 - 1 クラス `ASTRRewardCalculator` に状態管理・計算・描画を集約
 - データ更新後は `render()` で集計・表・グラフを再描画
 - テーマ変更時はチャートを再生成して表示崩れを回避
+- Windows ネイティブアプリ向け画面資産は Web 版をベースにしつつ、レポート出力導線を除いた派生構成とする
 
 ## 3. 現在の機能要件
 
@@ -49,6 +51,7 @@
 ### 3.3 表示機能
 
 - 集計サマリー表示
+- 加重平均取得ASTR単価（USD / JPY）表示
 - Claim 履歴テーブル表示
 - テーブルソート
 - 1ページ 5 件のページング
@@ -60,6 +63,13 @@
 - JSON エクスポート
 - PDF エクスポート
 - 印刷用レポート出力
+
+### 3.6 Windows ネイティブアプリ向け派生仕様
+
+- src4win 配下に Windows ネイティブアプリ向けの画面資産を配置
+- ベースは Web 版と同一 UI / UX
+- レポート出力ボタンと印刷用レポート導線は除外
+- それ以外の入力、集計、CSV / JSON / PDF、インポート、テーマ切り替え、参考レート取得を継承
 
 ### 3.5 UI 機能
 
@@ -78,6 +88,8 @@
 - CSV / JSON / PDF / レポート出力ボタン
 - JSON インポートボタン
 - 全データ削除ボタン
+
+※ src4win では「レポート出力」ボタンを表示しない。
 
 ### 4.2 右カラム
 
@@ -141,6 +153,8 @@ totalFee       = Σ fee
 totalFeeJPY    = Σ feeJPY
 totalRewardUSD = Σ rewardUSD
 totalRewardJPY = Σ rewardJPY
+weightedAverageAstrPriceUsd = totalRewardUSD ÷ totalAstr
+weightedAverageAstrPriceJpy = totalRewardJPY ÷ totalAstr
 netProfitJPY   = totalRewardJPY - totalFeeJPY
 ```
 
@@ -216,11 +230,12 @@ netProfitJPY   = totalRewardJPY - totalFeeJPY
 
 - `app.js` は単一ファイル構成で、規模拡大時は責務分割の余地がある
 - Chart.js の再描画安定性のため、テーマ切替時にチャートインスタンスを作り直す
-- CSV は一覧と集計の両方を含むエクスポート形式を採用している
+- CSV は一覧と集計の両方を含むエクスポート形式を採用しており、UTF-8 BOM 付きで出力する
 - レポート出力はブラウザ印刷を前提に A4 縦向けレイアウトを採用している
 - 直近のレポート補足情報は LocalStorage に保持し、次回のレポート出力時に初期値として再利用する
 - PDF エクスポートは html2canvas と jsPDF を使い、ブラウザ印刷に依存せずに保存できる
 - 月別集計一覧はレポートに含めず、月別集計グラフと Claim 履歴一覧を 2 ページ目以降へ配置する
+- src4win は Windows ネイティブアプリ組み込み用の画面資産で、Web 版の派生物として管理する
 
 ## 9. 今後の拡張候補
 

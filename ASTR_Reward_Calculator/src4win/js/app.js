@@ -65,7 +65,10 @@ class ASTRRewardCalculator {
         document.getElementById('exportCsvBtn').addEventListener('click', () => this.exportToCSV());
         document.getElementById('exportJsonBtn').addEventListener('click', () => this.exportToJSON());
         document.getElementById('exportPdfBtn').addEventListener('click', () => this.exportToPdfReport());
-        document.getElementById('exportReportBtn').addEventListener('click', () => this.exportToPrintReport());
+        const exportReportButton = document.getElementById('exportReportBtn');
+        if (exportReportButton) {
+            exportReportButton.addEventListener('click', () => this.exportToPrintReport());
+        }
         document.getElementById('clearAllBtn').addEventListener('click', () => this.clearAllData());
 
         // インポート
