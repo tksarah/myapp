@@ -7,7 +7,7 @@ class ASTRRewardCalculator {
     constructor() {
         this.data = [];
         this.editingId = null;
-        this.appVersion = '1.5.0';
+        this.appVersion = '1.6.0';
         this.storageKey = 'astr_reward_data';
         this.reportMetadataKey = 'astr_report_metadata';
         // ページング関連
@@ -1060,6 +1060,7 @@ class ASTRRewardCalculator {
                     margin: 0;
                     padding: 16mm 12mm;
                     box-shadow: none;
+                    min-height: 1122px;
                 }
             </style>
             ${this.buildReportBodyHtml(reportData)}
@@ -1088,21 +1089,6 @@ class ASTRRewardCalculator {
                 <div class="summary-value">${this.escapeHtml(value)}</div>
             </section>
         `).join('');
-
-        const monthlyRows = monthlyData.length > 0
-            ? monthlyData.map((item) => `
-                <tr>
-                    <td>${this.escapeHtml(item.month)}</td>
-                    <td class="text-end">¥${this.escapeHtml(this.formatCurrency(item.totalRewardJPY, 0))}</td>
-                    <td class="text-end">¥${this.escapeHtml(this.formatCurrency(item.totalFeeJPY, 0))}</td>
-                    <td class="text-end">¥${this.escapeHtml(this.formatCurrency(item.netProfitJPY, 0))}</td>
-                </tr>
-            `).join('')
-            : `
-                <tr>
-                    <td colspan="4" class="text-center">月別データはありません。</td>
-                </tr>
-            `;
 
         const historyRows = entries.map((entry, index) => {
             const calc = this.calculateEntry(entry);
@@ -1163,7 +1149,7 @@ class ASTRRewardCalculator {
             `
             : '';
 
-        return `<main class="page">
+        return `<main class="page report-cover">
         <header class="report-header avoid-break">
             <div>
                 <div class="report-badge">ASTR Reward Tax Calculator v${this.escapeHtml(this.appVersion)}</div>
@@ -1186,30 +1172,17 @@ class ASTRRewardCalculator {
             </div>
         </section>
 
-        <section class="section">
-            <h2>月別集計グラフ</h2>
-            ${chartSection}
-        </section>
-
         ${memoSection}
 
-        <section class="section avoid-break">
-            <h2>月別集計一覧</h2>
-            <div class="table-wrap">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>年月</th>
-                            <th class="text-end">合計リワード（JPY）</th>
-                            <th class="text-end">合計Fee（JPY）</th>
-                            <th class="text-end">最終損益額（JPY）</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${monthlyRows}
-                    </tbody>
-                </table>
-            </div>
+        <footer class="report-footer report-footer-cover">
+            このレポートは参考資料です。確定申告や税務判断の前に、必ず税理士または税務署へ確認してください。
+        </footer>
+    </main>
+
+    <main class="page page-break report-detail">
+        <section class="section section-first">
+            <h2>月別集計グラフ</h2>
+            ${chartSection}
         </section>
 
         <section class="section">
@@ -1297,6 +1270,14 @@ class ASTRRewardCalculator {
             background: var(--paper);
             box-shadow: 0 24px 60px rgba(15, 23, 42, 0.14);
         }
+        .report-cover,
+        .report-detail {
+            min-height: 257mm;
+        }
+        .page-break {
+            break-before: page;
+            page-break-before: always;
+        }
         .report-header {
             display: flex;
             justify-content: space-between;
@@ -1325,6 +1306,9 @@ class ASTRRewardCalculator {
         }
         .section {
             margin-top: 28px;
+        }
+        .section-first {
+            margin-top: 0;
         }
         .header-meta {
             min-width: 280px;
@@ -1440,6 +1424,9 @@ class ASTRRewardCalculator {
             color: var(--muted);
             font-size: 12px;
         }
+        .report-footer-cover {
+            margin-top: 28px;
+        }
         .avoid-break {
             break-inside: avoid;
             page-break-inside: avoid;
@@ -1456,6 +1443,10 @@ class ASTRRewardCalculator {
             .page {
                 width: calc(100vw - 16px);
                 padding: 18px;
+            }
+            .report-cover,
+            .report-detail {
+                min-height: auto;
             }
             .report-header {
                 flex-direction: column;
@@ -1487,6 +1478,10 @@ class ASTRRewardCalculator {
                 margin: 0;
                 padding: 0;
                 box-shadow: none;
+            }
+            .report-cover,
+            .report-detail {
+                min-height: auto;
             }
             .summary-grid {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
