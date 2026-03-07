@@ -7,7 +7,9 @@ class ASTRRewardCalculator {
     constructor() {
         this.data = [];
         this.editingId = null;
+        this.appVersion = '1.5.0';
         this.storageKey = 'astr_reward_data';
+        this.reportMetadataKey = 'astr_report_metadata';
         // ページング関連
         this.currentPage = 1;
         this.itemsPerPage = 5;
@@ -62,6 +64,8 @@ class ASTRRewardCalculator {
         // エクスポート
         document.getElementById('exportCsvBtn').addEventListener('click', () => this.exportToCSV());
         document.getElementById('exportJsonBtn').addEventListener('click', () => this.exportToJSON());
+        document.getElementById('exportPdfBtn').addEventListener('click', () => this.exportToPdfReport());
+        document.getElementById('exportReportBtn').addEventListener('click', () => this.exportToPrintReport());
         document.getElementById('clearAllBtn').addEventListener('click', () => this.clearAllData());
 
         // インポート
@@ -573,18 +577,12 @@ class ASTRRewardCalculator {
         // テーブル本体をレンダリング
         tbody.innerHTML = pageData.map((entry, index) => {
             const calc = this.calculateEntry(entry);
-            const dateObj = new Date(entry.date);
-            const formattedDate = dateObj.toLocaleDateString('ja-JP', {
-                year: 'numeric',
-                month: '2-digit',
-                day: '2-digit',
-            });
             const entryNumber = startIndex + index + 1;
 
             return `
                 <tr>
                     <td><strong>${entryNumber}</strong></td>
-                    <td><strong>${formattedDate}</strong></td>
+                    <td><strong>${this.formatDate(entry.date)}</strong></td>
                     <td class="text-end">${this.formatNumber(entry.astrAmount, 2)}</td>
                     <td class="text-end">$${this.formatCurrency(calc.rewardUSD)}</td>
                     <td class="text-end">¥${this.formatCurrency(calc.rewardJPY, 0)}</td>
@@ -768,10 +766,8 @@ class ASTRRewardCalculator {
         // データ行
         this.data.forEach(entry => {
             const calc = this.calculateEntry(entry);
-            const dateObj = new Date(entry.date);
-            const formattedDate = dateObj.toLocaleDateString('ja-JP');
 
-            csv += `${formattedDate},${entry.astrAmount},${entry.exchangeRate},${entry.astrPrice},${entry.fee},"${calc.rewardUSD.toFixed(2)}","${calc.rewardJPY.toFixed(0)}","${calc.profitUSD.toFixed(2)}","${calc.profitJPY.toFixed(0)}"\n`;
+            csv += `${this.formatDate(entry.date)},${entry.astrAmount},${entry.exchangeRate},${entry.astrPrice},${entry.fee},"${calc.rewardUSD.toFixed(2)}","${calc.rewardJPY.toFixed(0)}","${calc.profitUSD.toFixed(2)}","${calc.profitJPY.toFixed(0)}"\n`;
         });
 
         // 集計行
@@ -796,7 +792,7 @@ class ASTRRewardCalculator {
 
         const exportData = {
             exportDate: new Date().toISOString(),
-            appVersion: '1.0.0',
+            appVersion: this.appVersion,
             entries: this.data,
             totals: this.calculateTotals(),
         };
@@ -804,6 +800,709 @@ class ASTRRewardCalculator {
         const json = JSON.stringify(exportData, null, 2);
         this.downloadFile(json, 'astr_reward_data.json', 'application/json');
         this.showAlert('✅ JSONファイルをバックアップしました。', 'success');
+    }
+
+    async exportToPrintReport() {
+        if (this.data.length === 0) {
+            this.showAlert('レポート出力するデータがありません。', 'warning');
+            return;
+        }
+
+        const reportMetadata = await this.requestReportMetadata();
+        if (reportMetadata === null) {
+            this.showAlert('レポート出力をキャンセルしました。', 'info');
+            return;
+        }
+
+        const reportData = this.buildReportData(reportMetadata);
+        const reportWindow = window.open('', '_blank');
+
+        if (!reportWindow) {
+            this.showAlert('レポート画面を開けませんでした。ポップアップ設定を確認してください。', 'danger');
+            return;
+        }
+
+        reportWindow.document.write(this.buildPrintReportHtml(reportData));
+        reportWindow.document.close();
+        reportWindow.focus();
+
+        this.showAlert('🖨️ 印刷用レポートを開きました。ブラウザの印刷からPDF保存できます。', 'success');
+    }
+
+    async exportToPdfReport() {
+        if (this.data.length === 0) {
+            this.showAlert('PDF出力するデータがありません。', 'warning');
+            return;
+        }
+
+        if (!window.html2canvas || !window.jspdf?.jsPDF) {
+            this.showAlert('PDF出力ライブラリの読み込みに失敗しました。ページを再読み込みしてください。', 'danger');
+            return;
+        }
+
+        const reportMetadata = await this.requestReportMetadata();
+        if (reportMetadata === null) {
+            this.showAlert('PDF出力をキャンセルしました。', 'info');
+            return;
+        }
+
+        const reportData = this.buildReportData(reportMetadata);
+        const pdfContainer = this.createPdfRenderContainer(reportData);
+
+        try {
+            const canvas = await window.html2canvas(pdfContainer, {
+                scale: 2,
+                useCORS: true,
+                backgroundColor: '#ffffff',
+            });
+
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF({
+                orientation: 'portrait',
+                unit: 'mm',
+                format: 'a4',
+                compress: true,
+            });
+
+            const pageWidth = pdf.internal.pageSize.getWidth();
+            const pageHeight = pdf.internal.pageSize.getHeight();
+            const margin = 10;
+            const printableWidth = pageWidth - (margin * 2);
+            const printableHeight = pageHeight - (margin * 2);
+            const pixelsPerMm = canvas.width / printableWidth;
+            const pageSliceHeightPx = Math.floor(printableHeight * pixelsPerMm);
+            let offsetY = 0;
+            let pageIndex = 0;
+
+            while (offsetY < canvas.height) {
+                const sliceHeight = Math.min(pageSliceHeightPx, canvas.height - offsetY);
+                const pageCanvas = document.createElement('canvas');
+                pageCanvas.width = canvas.width;
+                pageCanvas.height = sliceHeight;
+
+                const pageContext = pageCanvas.getContext('2d');
+                pageContext.fillStyle = '#ffffff';
+                pageContext.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+                pageContext.drawImage(
+                    canvas,
+                    0,
+                    offsetY,
+                    canvas.width,
+                    sliceHeight,
+                    0,
+                    0,
+                    canvas.width,
+                    sliceHeight
+                );
+
+                const sliceHeightMm = sliceHeight / pixelsPerMm;
+                const imageData = pageCanvas.toDataURL('image/png');
+
+                if (pageIndex > 0) {
+                    pdf.addPage();
+                }
+
+                pdf.addImage(imageData, 'PNG', margin, margin, printableWidth, sliceHeightMm, undefined, 'FAST');
+                offsetY += sliceHeight;
+                pageIndex += 1;
+            }
+
+            pdf.save(`astr_reward_report_${this.formatDateForFile(new Date())}.pdf`);
+            this.showAlert('📄 PDFファイルをダウンロードしました。', 'success');
+        } catch (error) {
+            console.error('PDF出力エラー:', error);
+            this.showAlert('❌ PDF出力に失敗しました。', 'danger');
+        } finally {
+            pdfContainer.remove();
+        }
+    }
+
+    requestReportMetadata() {
+        const modalElement = document.getElementById('reportMetadataModal');
+        const form = document.getElementById('reportMetadataForm');
+        const walletAddressInput = document.getElementById('reportWalletAddressInput');
+        const walletNameInput = document.getElementById('reportWalletNameInput');
+        const memoInput = document.getElementById('reportMemoInput');
+        const savedMetadata = this.loadReportMetadata();
+
+        walletAddressInput.value = savedMetadata.walletAddress;
+        walletNameInput.value = savedMetadata.walletName;
+        memoInput.value = savedMetadata.memo;
+
+        const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
+
+        return new Promise((resolve) => {
+            let submittedMetadata = null;
+
+            const cleanup = () => {
+                form.removeEventListener('submit', handleSubmit);
+                modalElement.removeEventListener('hidden.bs.modal', handleHidden);
+            };
+
+            const handleSubmit = (event) => {
+                event.preventDefault();
+                submittedMetadata = {
+                    walletAddress: walletAddressInput.value.trim(),
+                    walletName: walletNameInput.value.trim(),
+                    memo: memoInput.value.trim(),
+                };
+                this.saveReportMetadata(submittedMetadata);
+                modal.hide();
+            };
+
+            const handleHidden = () => {
+                cleanup();
+                resolve(submittedMetadata);
+            };
+
+            form.addEventListener('submit', handleSubmit);
+            modalElement.addEventListener('hidden.bs.modal', handleHidden);
+            modal.show();
+        });
+    }
+
+    loadReportMetadata() {
+        try {
+            const storedMetadata = localStorage.getItem(this.reportMetadataKey);
+            if (!storedMetadata) {
+                return {
+                    walletAddress: '',
+                    walletName: '',
+                    memo: '',
+                };
+            }
+
+            const parsedMetadata = JSON.parse(storedMetadata);
+            return {
+                walletAddress: parsedMetadata.walletAddress || '',
+                walletName: parsedMetadata.walletName || '',
+                memo: parsedMetadata.memo || '',
+            };
+        } catch (error) {
+            console.error('レポート補足情報の読み込みに失敗しました:', error);
+            return {
+                walletAddress: '',
+                walletName: '',
+                memo: '',
+            };
+        }
+    }
+
+    saveReportMetadata(metadata) {
+        try {
+            localStorage.setItem(this.reportMetadataKey, JSON.stringify(metadata));
+        } catch (error) {
+            console.error('レポート補足情報の保存に失敗しました:', error);
+        }
+    }
+
+    buildReportData(reportMetadata) {
+        const entries = [...this.data].sort((a, b) => new Date(a.date) - new Date(b.date));
+        const totals = this.calculateTotals();
+        const monthlyData = this.calculateMonthlyTotals();
+        const chartCanvas = document.getElementById('monthlyChart');
+        const chartImage = monthlyData.length > 0 && chartCanvas ? chartCanvas.toDataURL('image/png') : '';
+
+        return {
+            entries,
+            totals,
+            monthlyData,
+            chartImage,
+            generatedAt: new Date().toLocaleString('ja-JP'),
+            reportMetadata,
+        };
+    }
+
+    buildPrintReportHtml({ entries, totals, monthlyData, chartImage, generatedAt, reportMetadata }) {
+        return `<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ASTR Reward Report</title>
+    <style>${this.getReportStyles()}</style>
+</head>
+<body>
+    <div class="toolbar">
+        <div>印刷ダイアログから PDF 保存できます。</div>
+        <div class="toolbar-actions">
+            <button class="primary" onclick="window.print()">印刷 / PDF保存</button>
+            <button class="secondary" onclick="window.close()">閉じる</button>
+        </div>
+    </div>
+    ${this.buildReportBodyHtml({ entries, totals, monthlyData, chartImage, generatedAt, reportMetadata })}
+</body>
+</html>`;
+    }
+
+    createPdfRenderContainer(reportData) {
+        const container = document.createElement('div');
+        container.id = 'pdfRenderContainer';
+        container.style.cssText = [
+            'position: fixed',
+            'left: -99999px',
+            'top: 0',
+            'width: 794px',
+            'padding: 0',
+            'margin: 0',
+            'background: #ffffff',
+            'z-index: -1'
+        ].join(';');
+        container.innerHTML = `
+            <style>
+                ${this.getReportStyles()}
+                #pdfRenderContainer {
+                    font-family: "Segoe UI", "Yu Gothic UI", sans-serif;
+                    color: #16202a;
+                }
+                #pdfRenderContainer .page {
+                    width: 100%;
+                    margin: 0;
+                    padding: 16mm 12mm;
+                    box-shadow: none;
+                }
+            </style>
+            ${this.buildReportBodyHtml(reportData)}
+        `;
+        document.body.appendChild(container);
+        return container;
+    }
+
+    buildReportBodyHtml({ entries, totals, monthlyData, chartImage, generatedAt, reportMetadata }) {
+        const reportPeriod = `${this.formatDate(entries[0].date)} 〜 ${this.formatDate(entries[entries.length - 1].date)}`;
+        const detailItems = [
+            ['ウォレットアドレス', reportMetadata.walletAddress],
+            ['ウォレット名', reportMetadata.walletName],
+        ].filter(([, value]) => value);
+        const summaryCards = [
+            ['Claim回数', `${totals.totalCount}`],
+            ['合計ASTR量', `${this.formatNumber(totals.totalAstr, 2)} ASTR`],
+            ['合計Fee', `${this.formatNumber(totals.totalFee, 5)} ASTR`],
+            ['合計Fee（JPY）', `¥${this.formatCurrency(totals.totalFeeJPY, 0)}`],
+            ['総リワード（USD）', `$${this.formatCurrency(totals.totalRewardUSD)}`],
+            ['総リワード（JPY）', `¥${this.formatCurrency(totals.totalRewardJPY, 0)}`],
+            ['最終損益額（JPY）', `¥${this.formatCurrency(totals.netProfitJPY, 0)}`],
+        ].map(([label, value]) => `
+            <section class="summary-card">
+                <div class="summary-label">${this.escapeHtml(label)}</div>
+                <div class="summary-value">${this.escapeHtml(value)}</div>
+            </section>
+        `).join('');
+
+        const monthlyRows = monthlyData.length > 0
+            ? monthlyData.map((item) => `
+                <tr>
+                    <td>${this.escapeHtml(item.month)}</td>
+                    <td class="text-end">¥${this.escapeHtml(this.formatCurrency(item.totalRewardJPY, 0))}</td>
+                    <td class="text-end">¥${this.escapeHtml(this.formatCurrency(item.totalFeeJPY, 0))}</td>
+                    <td class="text-end">¥${this.escapeHtml(this.formatCurrency(item.netProfitJPY, 0))}</td>
+                </tr>
+            `).join('')
+            : `
+                <tr>
+                    <td colspan="4" class="text-center">月別データはありません。</td>
+                </tr>
+            `;
+
+        const historyRows = entries.map((entry, index) => {
+            const calc = this.calculateEntry(entry);
+
+            return `
+                <tr>
+                    <td>${index + 1}</td>
+                    <td>${this.escapeHtml(this.formatDate(entry.date))}</td>
+                    <td class="text-end">${this.escapeHtml(this.formatNumber(entry.astrAmount, 2))} ASTR</td>
+                    <td class="text-end cell-stack">
+                        <span>USD/JPY ${this.escapeHtml(this.formatCurrency(entry.exchangeRate, 2))}</span>
+                        <span>ASTR/USD ${this.escapeHtml(this.formatCurrency(entry.astrPrice, 4))}</span>
+                    </td>
+                    <td class="text-end cell-stack">
+                        <span>Fee ${this.escapeHtml(this.formatNumber(entry.fee, 5))} ASTR</span>
+                        <span>Reward $${this.escapeHtml(this.formatCurrency(calc.rewardUSD, 2))}</span>
+                    </td>
+                    <td class="text-end cell-stack">
+                        <span>Reward ¥${this.escapeHtml(this.formatCurrency(calc.rewardJPY, 0))}</span>
+                        <span>Profit ¥${this.escapeHtml(this.formatCurrency(calc.profitJPY, 0))}</span>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+
+        const chartSection = chartImage
+            ? `
+                <figure class="chart-card section-card avoid-break">
+                    <img src="${chartImage}" alt="月別集計グラフ">
+                    <figcaption>月別の合計リワード額（JPY）を表示</figcaption>
+                </figure>
+            `
+            : `
+                <div class="section-card avoid-break muted-box">
+                    月別集計グラフを表示できるデータがありません。
+                </div>
+            `;
+
+        const detailSection = detailItems.length > 0
+            ? `
+                <div class="wallet-box">
+                    ${detailItems.map(([label, value]) => `
+                        <div class="wallet-row">
+                            <div class="wallet-label">${this.escapeHtml(label)}</div>
+                            <div class="wallet-value">${this.escapeHtml(value)}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            `
+            : '';
+
+        const memoSection = reportMetadata.memo
+            ? `
+                <section class="section avoid-break">
+                    <h2>メモ</h2>
+                    <div class="section-card memo-card">${this.escapeHtml(reportMetadata.memo).replace(/\n/g, '<br>')}</div>
+                </section>
+            `
+            : '';
+
+        return `<main class="page">
+        <header class="report-header avoid-break">
+            <div>
+                <div class="report-badge">ASTR Reward Tax Calculator v${this.escapeHtml(this.appVersion)}</div>
+                <h1 class="report-title">ASTR Reward Report</h1>
+                <p class="report-subtitle">Astar dApp Staking の Claim 履歴と集計を印刷向けに整理したレポートです。</p>
+            </div>
+            <div class="header-meta">
+                <p class="report-meta">出力日時: ${this.escapeHtml(generatedAt)}</p>
+                <p class="report-meta">対象期間: ${this.escapeHtml(reportPeriod)}</p>
+                <p class="report-meta">件数: ${this.escapeHtml(String(entries.length))} 件</p>
+                <p class="report-meta">Builder: tksarah</p>
+                ${detailSection}
+            </div>
+        </header>
+
+        <section class="section">
+            <h2>集計結果</h2>
+            <div class="summary-grid">
+                ${summaryCards}
+            </div>
+        </section>
+
+        <section class="section">
+            <h2>月別集計グラフ</h2>
+            ${chartSection}
+        </section>
+
+        ${memoSection}
+
+        <section class="section avoid-break">
+            <h2>月別集計一覧</h2>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>年月</th>
+                            <th class="text-end">合計リワード（JPY）</th>
+                            <th class="text-end">合計Fee（JPY）</th>
+                            <th class="text-end">最終損益額（JPY）</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${monthlyRows}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="section">
+            <h2>Claim 履歴一覧</h2>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>日付</th>
+                            <th class="text-end">Claim量</th>
+                            <th class="text-end">レート情報</th>
+                            <th class="text-end">Fee / Reward（USD）</th>
+                            <th class="text-end">Reward / Profit（JPY）</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${historyRows}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <footer class="report-footer">
+            このレポートは参考資料です。確定申告や税務判断の前に、必ず税理士または税務署へ確認してください。
+        </footer>
+    </main>`;
+    }
+
+    getReportStyles() {
+        return `
+        :root {
+            color-scheme: light;
+            --ink: #16202a;
+            --muted: #5f6b76;
+            --line: #d6dde3;
+            --paper: #ffffff;
+            --panel: #f4f7f9;
+            --accent: #0f766e;
+            --accent-soft: #d9f3ee;
+        }
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            margin: 0;
+            font-family: "Segoe UI", "Yu Gothic UI", sans-serif;
+            color: var(--ink);
+            background: #e9eef2;
+        }
+        .toolbar {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 20px;
+            background: rgba(22, 32, 42, 0.92);
+            color: #ffffff;
+        }
+        .toolbar-actions {
+            display: flex;
+            gap: 10px;
+        }
+        .toolbar button {
+            border: 0;
+            border-radius: 999px;
+            padding: 10px 16px;
+            font: inherit;
+            cursor: pointer;
+        }
+        .toolbar .primary {
+            background: #f59e0b;
+            color: #1f2937;
+        }
+        .toolbar .secondary {
+            background: #dbe4ea;
+            color: #1f2937;
+        }
+        .page {
+            width: min(920px, calc(100vw - 32px));
+            margin: 20px auto 40px;
+            padding: 28px;
+            background: var(--paper);
+            box-shadow: 0 24px 60px rgba(15, 23, 42, 0.14);
+        }
+        .report-header {
+            display: flex;
+            justify-content: space-between;
+            gap: 24px;
+            align-items: flex-start;
+            margin-bottom: 28px;
+        }
+        .report-title {
+            margin: 0 0 8px;
+            font-size: 30px;
+            line-height: 1.1;
+        }
+        .report-subtitle,
+        .report-meta {
+            margin: 0;
+            color: var(--muted);
+        }
+        .report-badge {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 999px;
+            background: var(--accent-soft);
+            color: var(--accent);
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+        .section {
+            margin-top: 28px;
+        }
+        .header-meta {
+            min-width: 280px;
+        }
+        .wallet-box {
+            margin-top: 12px;
+            padding: 12px 14px;
+            border-radius: 12px;
+            border: 1px solid #b8c7d1;
+            background: #eef4f7;
+        }
+        .wallet-row + .wallet-row {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px dashed var(--line);
+        }
+        .wallet-label {
+            margin-bottom: 4px;
+            color: #30424f;
+            font-size: 12px;
+            font-weight: 700;
+        }
+        .wallet-value {
+            color: #101820;
+            font-size: 13px;
+            font-weight: 600;
+            overflow-wrap: anywhere;
+            word-break: break-all;
+        }
+        .memo-card {
+            padding: 16px;
+            color: #101820;
+            line-height: 1.6;
+            white-space: normal;
+        }
+        .section h2 {
+            margin: 0 0 14px;
+            font-size: 20px;
+        }
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+        .summary-card,
+        .section-card,
+        .muted-box {
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            background: var(--panel);
+        }
+        .summary-card {
+            padding: 16px;
+        }
+        .summary-label {
+            color: var(--muted);
+            font-size: 13px;
+            margin-bottom: 8px;
+        }
+        .summary-value {
+            font-size: 24px;
+            font-weight: 700;
+        }
+        .chart-card {
+            padding: 20px;
+            text-align: center;
+        }
+        .chart-card img {
+            width: 100%;
+            height: auto;
+        }
+        .chart-card figcaption {
+            margin-top: 10px;
+            color: var(--muted);
+            font-size: 13px;
+        }
+        .table-wrap {
+            overflow: hidden;
+            border: 1px solid var(--line);
+            border-radius: 16px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+        }
+        thead {
+            background: #eef4f6;
+        }
+        th,
+        td {
+            padding: 9px 10px;
+            border-bottom: 1px solid var(--line);
+            vertical-align: top;
+        }
+        tbody tr:nth-child(even) {
+            background: #fbfcfd;
+        }
+        .text-end {
+            text-align: right;
+        }
+        .text-center {
+            text-align: center;
+        }
+        .cell-stack span {
+            display: block;
+            white-space: nowrap;
+        }
+        .report-footer {
+            margin-top: 22px;
+            padding-top: 12px;
+            border-top: 1px solid var(--line);
+            color: var(--muted);
+            font-size: 12px;
+        }
+        .avoid-break {
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+        .muted-box {
+            padding: 20px;
+            color: var(--muted);
+        }
+        @page {
+            size: A4 portrait;
+            margin: 12mm;
+        }
+        @media (max-width: 900px) {
+            .page {
+                width: calc(100vw - 16px);
+                padding: 18px;
+            }
+            .report-header {
+                flex-direction: column;
+            }
+            .summary-grid {
+                grid-template-columns: 1fr;
+            }
+            .toolbar {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 12px;
+            }
+            .toolbar-actions {
+                width: 100%;
+            }
+            .toolbar button {
+                flex: 1;
+            }
+        }
+        @media print {
+            body {
+                background: #ffffff;
+            }
+            .toolbar {
+                display: none;
+            }
+            .page {
+                width: auto;
+                margin: 0;
+                padding: 0;
+                box-shadow: none;
+            }
+            .summary-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+            table {
+                font-size: 10px;
+            }
+            th,
+            td {
+                padding: 7px 6px;
+            }
+            a {
+                color: inherit;
+                text-decoration: none;
+            }
+        }`;
     }
 
     downloadFile(content, filename, type) {
@@ -945,6 +1644,24 @@ class ASTRRewardCalculator {
         return 'id_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
     }
 
+    formatDate(dateString) {
+        return new Date(dateString).toLocaleDateString('ja-JP', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+        });
+    }
+
+    formatDateForFile(date) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        const seconds = String(date.getSeconds()).padStart(2, '0');
+        return `${year}${month}${day}_${hours}${minutes}${seconds}`;
+    }
+
     formatNumber(num, decimals = 2) {
         return num.toLocaleString('ja-JP', {
             minimumFractionDigits: decimals,
@@ -957,6 +1674,16 @@ class ASTRRewardCalculator {
             minimumFractionDigits: decimals,
             maximumFractionDigits: decimals,
         });
+    }
+
+    escapeHtml(value) {
+        return String(value).replace(/[&<>"']/g, (char) => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;'
+        }[char]));
     }
 
     showAlert(message, type = 'info') {
