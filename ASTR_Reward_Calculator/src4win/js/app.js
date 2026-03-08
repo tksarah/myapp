@@ -7,9 +7,12 @@ class ASTRRewardCalculator {
     constructor() {
         this.data = [];
         this.editingId = null;
-        this.appVersion = '1.7.0';
+        this.appVersion = '1.8.1';
         this.storageKey = 'astr_reward_data';
         this.reportMetadataKey = 'astr_report_metadata';
+        this.defaultCategory = 'dAppStaking';
+        this.availableCategories = ['取引所', 'その他', 'dAppStaking'];
+        this.historyDetailMode = false;
         // ページング関連
         this.currentPage = 1;
         this.itemsPerPage = 5;
@@ -80,6 +83,11 @@ class ASTRRewardCalculator {
         });
         document.getElementById('fileInput').addEventListener('change', (e) => this.handleImport(e));
 
+        const historyDetailToggleButton = document.getElementById('historyDetailToggleBtn');
+        if (historyDetailToggleButton) {
+            historyDetailToggleButton.addEventListener('click', () => this.toggleHistoryDetailMode());
+        }
+
         // ソート機能
         document.querySelectorAll('.sortable').forEach(header => {
             header.addEventListener('click', (e) => {
@@ -105,9 +113,11 @@ class ASTRRewardCalculator {
     getFormData() {
         const date = document.getElementById('date').value;
         const astrAmount = parseFloat(document.getElementById('astrAmount').value);
+        const category = this.normalizeCategory(document.getElementById('category').value);
         const exchangeRate = parseFloat(document.getElementById('exchangeRate').value);
         const astrPrice = parseFloat(document.getElementById('astrPrice').value);
         const fee = parseFloat(document.getElementById('fee').value) || 0;
+        const memo = this.normalizeMemo(document.getElementById('memo').value);
 
         // バリデーション
         if (!date || isNaN(astrAmount) || isNaN(exchangeRate) || isNaN(astrPrice)) {
@@ -125,12 +135,19 @@ class ASTRRewardCalculator {
             return null;
         }
 
+        if (memo.length > 15) {
+            this.showAlert('メモは全角15文字以内で入力してください。', 'danger');
+            return null;
+        }
+
         return {
             date,
             astrAmount,
+            category,
             exchangeRate,
             astrPrice,
             fee,
+            memo,
         };
     }
 
@@ -254,6 +271,9 @@ class ASTRRewardCalculator {
     clearForm() {
         document.getElementById('entryForm').reset();
         document.getElementById('date').valueAsDate = new Date();
+        document.getElementById('category').value = this.defaultCategory;
+        document.getElementById('fee').value = '0';
+        document.getElementById('memo').value = '';
     }
 
     // ========================
@@ -265,9 +285,11 @@ class ASTRRewardCalculator {
             id: this.generateId(),
             date: data.date,
             astrAmount: data.astrAmount,
+            category: this.normalizeCategory(data.category),
             exchangeRate: data.exchangeRate,
             astrPrice: data.astrPrice,
             fee: data.fee,
+            memo: this.normalizeMemo(data.memo),
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
         };
@@ -312,9 +334,11 @@ class ASTRRewardCalculator {
         if (entry) {
             document.getElementById('date').value = entry.date;
             document.getElementById('astrAmount').value = entry.astrAmount;
+            document.getElementById('category').value = this.normalizeCategory(entry.category);
             document.getElementById('exchangeRate').value = entry.exchangeRate;
             document.getElementById('astrPrice').value = entry.astrPrice;
             document.getElementById('fee').value = entry.fee;
+            document.getElementById('memo').value = this.normalizeMemo(entry.memo);
 
             this.editingId = id;
             document.getElementById('submitBtnText').textContent = '✏️ 更新';
@@ -353,15 +377,22 @@ class ASTRRewardCalculator {
         let totalFeeJPY = 0;
         let totalRewardUSD = 0;
         let totalRewardJPY = 0;
+        const categoryRewardJPYTotals = {
+            '取引所': 0,
+            'その他': 0,
+            'dAppStaking': 0,
+        };
 
         this.data.forEach(entry => {
             const calc = this.calculateEntry(entry);
+            const category = this.normalizeCategory(entry.category);
             totalCount += 1;
             totalAstr += entry.astrAmount;
             totalFee += entry.fee;
             totalFeeJPY += calc.feeJPY;
             totalRewardUSD += calc.rewardUSD;
             totalRewardJPY += calc.rewardJPY;
+            categoryRewardJPYTotals[category] += calc.rewardJPY;
         });
 
         // 最終損益額 = 総リワード（JPY） - 総Fee（JPY）
@@ -376,6 +407,7 @@ class ASTRRewardCalculator {
             totalFeeJPY,
             totalRewardUSD,
             totalRewardJPY,
+            categoryRewardJPYTotals,
             netProfitJPY,
             weightedAverageAstrPriceUsd,
             weightedAverageAstrPriceJpy,
@@ -431,8 +463,11 @@ class ASTRRewardCalculator {
         document.getElementById('totalFeeJpy').textContent = '¥' + this.formatCurrency(totals.totalFeeJPY, 2);
         document.getElementById('totalRewardUsd').textContent = '$' + this.formatCurrency(totals.totalRewardUSD);
         document.getElementById('totalRewardJpy').textContent = '¥' + this.formatCurrency(totals.totalRewardJPY, 0);
-        document.getElementById('weightedAvgAstrUsd').textContent = '$' + this.formatCurrency(totals.weightedAverageAstrPriceUsd, 4);
+        document.getElementById('weightedAvgAstrUsd').textContent = '$' + this.formatCurrency(totals.weightedAverageAstrPriceUsd, 2);
         document.getElementById('weightedAvgAstrJpy').textContent = '¥' + this.formatCurrency(totals.weightedAverageAstrPriceJpy, 2);
+        document.getElementById('categoryRewardJpyExchange').textContent = '¥' + this.formatCurrency(totals.categoryRewardJPYTotals['取引所'], 0);
+        document.getElementById('categoryRewardJpyOther').textContent = '¥' + this.formatCurrency(totals.categoryRewardJPYTotals['その他'], 0);
+        document.getElementById('categoryRewardJpyDapp').textContent = '¥' + this.formatCurrency(totals.categoryRewardJPYTotals.dAppStaking, 0);
         document.getElementById('netProfitJpy').textContent = '¥' + this.formatCurrency(totals.netProfitJPY, 0);
     }
 
@@ -565,10 +600,12 @@ class ASTRRewardCalculator {
         const tbody = document.getElementById('tableBody');
         const paginationControls = document.getElementById('paginationControls');
 
+        this.updateHistoryDetailDisplay();
+
         if (this.data.length === 0) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="6" class="text-center text-muted py-4">
+                    <td colspan="7" class="text-center text-muted py-4">
                         データがありません。リワード情報を追加してください。
                     </td>
                 </tr>
@@ -595,20 +632,52 @@ class ASTRRewardCalculator {
         // テーブル本体をレンダリング
         tbody.innerHTML = pageData.map((entry, index) => {
             const calc = this.calculateEntry(entry);
-            const entryNumber = startIndex + index + 1;
+            const category = this.normalizeCategory(entry.category);
+            const categoryClass = this.getCategoryBadgeClass(category);
+            const memo = this.normalizeMemo(entry.memo);
 
             return `
-                <tr>
-                    <td><strong>${entryNumber}</strong></td>
-                    <td><strong>${this.formatDate(entry.date)}</strong></td>
-                    <td class="text-end">${this.formatNumber(entry.astrAmount, 2)}</td>
-                    <td class="text-end">$${this.formatCurrency(calc.rewardUSD)}</td>
-                    <td class="text-end">¥${this.formatCurrency(calc.rewardJPY, 0)}</td>
-                    <td class="text-center">
-                        <button class="btn btn-sm btn-outline-primary me-1" onclick="app.editEntry('${entry.id}')">
+                <tr class="claim-history-row">
+                    <td>
+                        <div class="claim-date-cell">
+                            <span class="claim-date-main">${this.escapeHtml(this.formatDate(entry.date))}</span>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="claim-category-cell">
+                            <span class="claim-category-badge ${categoryClass}">${this.escapeHtml(category)}</span>
+                            ${memo ? `<span class="claim-category-note">${this.escapeHtml(memo)}</span>` : ''}
+                        </div>
+                    </td>
+                    <td class="text-end">
+                        <div class="claim-metric-cell">
+                            <span class="claim-metric-main">${this.formatCompactAstrAmount(entry.astrAmount)}</span>
+                            <span class="claim-metric-sub">ASTR</span>
+                        </div>
+                    </td>
+                    <td class="text-end history-detail-column">
+                        <div class="claim-rate-cell">
+                            <span class="claim-rate-line">ASTR/USD ${this.formatCurrency(entry.astrPrice, 4)}</span>
+                            <span class="claim-rate-line">USD/JPY ${this.formatCurrency(entry.exchangeRate, 2)}</span>
+                        </div>
+                    </td>
+                    <td class="text-end history-detail-column">
+                        <div class="claim-metric-cell">
+                            <span class="claim-metric-main">$${this.formatCurrency(calc.rewardUSD)}</span>
+                            <span class="claim-metric-sub">Fee $${this.formatCurrency(calc.feeUSD, 2)}</span>
+                        </div>
+                    </td>
+                    <td class="text-end">
+                        <div class="claim-metric-cell claim-metric-cell-jpy">
+                            <span class="claim-metric-main">¥${this.formatCurrency(calc.rewardJPY, 0)}</span>
+                            <span class="claim-metric-sub">Fee ¥${this.formatCurrency(calc.feeJPY, 0)}</span>
+                        </div>
+                    </td>
+                    <td class="text-center claim-actions-cell">
+                        <button class="btn btn-sm btn-outline-primary claim-action-btn me-1" onclick="app.editEntry('${entry.id}')">
                             編集
                         </button>
-                        <button class="btn btn-sm btn-outline-danger" onclick="app.deleteEntry('${entry.id}')">
+                        <button class="btn btn-sm btn-outline-danger claim-action-btn" onclick="app.deleteEntry('${entry.id}')">
                             削除
                         </button>
                     </td>
@@ -689,6 +758,43 @@ class ASTRRewardCalculator {
         this.renderTable();
     }
 
+    toggleHistoryDetailMode() {
+        this.historyDetailMode = !this.historyDetailMode;
+
+        if (!this.historyDetailMode && this.sortColumn === 'rewardUSD') {
+            this.sortColumn = 'rewardJPY';
+            this.sortOrder = 'desc';
+            this.updateSortIcons();
+        }
+
+        this.renderTable();
+    }
+
+    updateHistoryDetailDisplay() {
+        const table = document.getElementById('dataTable');
+        const toggleButton = document.getElementById('historyDetailToggleBtn');
+        const hint = document.getElementById('historyDetailModeHint');
+
+        if (table) {
+            table.classList.toggle('history-detail-mode', this.historyDetailMode);
+            table.classList.toggle('history-compact-mode', !this.historyDetailMode);
+        }
+
+        if (toggleButton) {
+            toggleButton.textContent = this.historyDetailMode ? '簡易表示' : '詳細表示';
+            toggleButton.setAttribute('aria-pressed', this.historyDetailMode ? 'true' : 'false');
+            toggleButton.classList.toggle('btn-info', this.historyDetailMode);
+            toggleButton.classList.toggle('text-white', this.historyDetailMode);
+            toggleButton.classList.toggle('btn-outline-info', !this.historyDetailMode);
+        }
+
+        if (hint) {
+            hint.textContent = this.historyDetailMode
+                ? '詳細表示: レートと USD を含めて一覧表示しています。'
+                : '簡易表示: JPY を中心に一覧表示しています。';
+        }
+    }
+
     updateSortIcons() {
         // すべてのソートアイコンをリセット
         document.querySelectorAll('.sort-icon').forEach(icon => {
@@ -710,6 +816,10 @@ class ASTRRewardCalculator {
                 case 'date':
                     valueA = new Date(a.date);
                     valueB = new Date(b.date);
+                    break;
+                case 'category':
+                    valueA = this.normalizeCategory(a.category).toLowerCase();
+                    valueB = this.normalizeCategory(b.category).toLowerCase();
                     break;
                 case 'astrAmount':
                     valueA = a.astrAmount;
@@ -755,7 +865,7 @@ class ASTRRewardCalculator {
         try {
             const stored = localStorage.getItem(this.storageKey);
             if (stored) {
-                this.data = JSON.parse(stored);
+                this.data = JSON.parse(stored).map(entry => this.normalizeEntry(entry));
                 console.log(`✅ ${this.data.length} 件のデータを読み込みました。`);
             }
         } catch (error) {
@@ -779,14 +889,14 @@ class ASTRRewardCalculator {
             'ASTR Reward Tax Calculator - データエクスポート',
             `エクスポート日時: ${new Date().toLocaleString('ja-JP')}`,
             '',
-            '日付,ASTR量,ドル円レート,ASTRレート(USD),Fee,リワード(USD),リワード(JPY),利益(USD),利益(JPY)',
+            '日付,カテゴリー,ASTR量,ドル円レート,ASTRレート(USD),Fee,リワード(USD),リワード(JPY),利益(USD),利益(JPY)',
         ];
 
         this.data.forEach(entry => {
             const calc = this.calculateEntry(entry);
 
             lines.push(
-                `${this.formatDate(entry.date)},${entry.astrAmount},${entry.exchangeRate},${entry.astrPrice},${entry.fee},"${calc.rewardUSD.toFixed(2)}","${calc.rewardJPY.toFixed(0)}","${calc.profitUSD.toFixed(2)}","${calc.profitJPY.toFixed(0)}"`
+                `${this.formatDate(entry.date)},${this.normalizeCategory(entry.category)},${entry.astrAmount},${entry.exchangeRate},${entry.astrPrice},${entry.fee},"${calc.rewardUSD.toFixed(2)}","${calc.rewardJPY.toFixed(0)}","${calc.profitUSD.toFixed(2)}","${calc.profitJPY.toFixed(0)}"`
             );
         });
 
@@ -1122,6 +1232,7 @@ class ASTRRewardCalculator {
                 <tr>
                     <td>${index + 1}</td>
                     <td>${this.escapeHtml(this.formatDate(entry.date))}</td>
+                    <td>${this.escapeHtml(this.normalizeCategory(entry.category))}</td>
                     <td class="text-end">${this.escapeHtml(this.formatNumber(entry.astrAmount, 2))} ASTR</td>
                     <td class="text-end cell-stack">
                         <span>USD/JPY ${this.escapeHtml(this.formatCurrency(entry.exchangeRate, 2))}</span>
@@ -1218,6 +1329,7 @@ class ASTRRewardCalculator {
                         <tr>
                             <th>#</th>
                             <th>日付</th>
+                            <th>カテゴリー</th>
                             <th class="text-end">Claim量</th>
                             <th class="text-end">レート情報</th>
                             <th class="text-end">Fee / Reward（USD）</th>
@@ -1646,12 +1758,13 @@ class ASTRRewardCalculator {
     mergeEntries(entries) {
         let addedCount = 0;
         entries.forEach(entry => {
+            const normalizedEntry = this.normalizeEntry(entry);
             // 必須フィールドチェック
-            if (!entry.id || !entry.date || entry.astrAmount == null) return;
+            if (!normalizedEntry.id || !normalizedEntry.date || normalizedEntry.astrAmount == null) return;
             // 重複判定
-            const exists = this.data.find(e => e.id === entry.id);
+            const exists = this.data.find(e => e.id === normalizedEntry.id);
             if (!exists) {
-                this.data.push(entry);
+                this.data.push(normalizedEntry);
                 addedCount += 1;
             }
         });
@@ -1661,6 +1774,34 @@ class ASTRRewardCalculator {
     // ========================
     // ユーティリティ
     // ========================
+
+    normalizeCategory(category) {
+        return this.availableCategories.includes(category) ? category : this.defaultCategory;
+    }
+
+    normalizeEntry(entry) {
+        return {
+            ...entry,
+            category: this.normalizeCategory(entry?.category),
+            fee: Number.isFinite(Number(entry?.fee)) ? Number(entry.fee) : 0,
+            memo: this.normalizeMemo(entry?.memo),
+        };
+    }
+
+    normalizeMemo(memo) {
+        return String(memo || '').trim().slice(0, 15);
+    }
+
+    getCategoryBadgeClass(category) {
+        switch (this.normalizeCategory(category)) {
+            case '取引所':
+                return 'claim-category-exchange';
+            case 'その他':
+                return 'claim-category-other';
+            default:
+                return 'claim-category-dapp';
+        }
+    }
 
     generateId() {
         return 'id_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
@@ -1689,6 +1830,23 @@ class ASTRRewardCalculator {
             minimumFractionDigits: decimals,
             maximumFractionDigits: decimals,
         });
+    }
+
+    formatCompactAstrAmount(num) {
+        if (num >= 1000000) {
+            return `${this.formatCompactSuffixValue(num / 1000000)}M`;
+        }
+
+        if (num >= 1000) {
+            return `${this.formatCompactSuffixValue(num / 1000)}K`;
+        }
+
+        return this.formatNumber(num, 2);
+    }
+
+    formatCompactSuffixValue(num) {
+        const rounded = num >= 100 ? Math.round(num) : Math.round(num * 10) / 10;
+        return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
     }
 
     formatCurrency(num, decimals = 2) {
